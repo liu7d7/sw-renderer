@@ -59,6 +59,7 @@ rstr_test(rstr_vsh_t *v, int w, int h) {
 
     float area = _edge_fn(v0.xy, v1.xy, v2.xy);
 
+#pragma omp parallel for
     for (int y = yi; y < yf; y++) {
       for (int x = xi; x < xf; x++) {
         v2_t p = {x, y};

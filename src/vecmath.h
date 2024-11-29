@@ -122,6 +122,9 @@ union v4 {
 
 typedef union v4 v4_t;
 
+#define v4_s "<%f, %f, %f, %f>"
+#define v4_v(v) v.x, v.y, v.z, v.w
+
 inline static float 
 v4_dot(v4_t a, v4_t b) {
   return fma(a.x, b.x, fma(a.y, b.y, fma(a.z, b.z, a.w * b.w)));
@@ -176,17 +179,11 @@ m4_mul(m4_t a, m4_t b) {
 inline static v4_t
 v4_m4_mul(v4_t a, m4_t b) {
   // row of vector dot column of matrix.
-  /*return (v4_t){
+  return (v4_t){
     fma(a._00, b._00, fma(a._01, b._10, fma(a._02, b._20, a._03 * b._30))),
     fma(a._00, b._01, fma(a._01, b._11, fma(a._02, b._21, a._03 * b._31))),
     fma(a._00, b._02, fma(a._01, b._12, fma(a._02, b._22, a._03 * b._32))),
     fma(a._00, b._03, fma(a._01, b._13, fma(a._02, b._23, a._03 * b._33))),
-  };*/
-  return (v4_t){
-    a._00 * b._00 + a._01 * b._10 + a._02 * b._20 + a._03 * b._30,
-    a._01 * b._01 + a._01 * b._11 + a._02 * b._21 + a._03 * b._31,
-    a._02 * b._02 + a._01 * b._12 + a._02 * b._22 + a._03 * b._32,
-    a._03 * b._03 + a._01 * b._13 + a._02 * b._23 + a._03 * b._33,
   };
 }
 

@@ -55,8 +55,6 @@ wnd_clamp_y(wnd_t *w, int y) {
   return min(w->h, max(0, y));
 }
 
-
-
 v4_t 
 _tmp_main(rstr_vsh_t *v, 
           void const *uni, 
@@ -64,7 +62,7 @@ _tmp_main(rstr_vsh_t *v,
           void *vo) {
   v3_t const *in = vi;
   persp_cam_t const *cam = uni;
-  v4_t world = {v3_v((*in)), 1};
+  v4_t world = {in->x, in->y, in->z, 1};
   v4_t camera = v4_m4_mul(world, cam->view);
   v4_t ndc = v4_m4_mul(camera, cam->proj);
   return ndc;
@@ -77,29 +75,67 @@ _wnd_draw(wnd_t *w) {
   static float a = 0;
 
   a += w->dt * 100;
+
+  float x = w->t;
+
+  v3_t cube[] = {
+    {x, 0, 0},
+    {x, 10, 0},
+    {x + 10, 10, 0},
+    {x + 10, 10, 0},
+    {x + 10, 0, 0},
+    {x, 0, 0},
+
+    {x, 10, 0},
+    {x, 10, 10},
+    {x + 10, 10, 10},
+    {x + 10, 10, 10},
+    {x + 10, 10, 0},
+    {x, 10, 0},
+
+    {x, 0, 10},
+    {x + 10, 10, 10},
+    {x, 10, 10},
+    {x + 10, 10, 10},
+    {x, 0, 10},
+    {x + 10, 0, 10},
+
+    {x, 0, 0},
+    {x + 10, 0, 10},
+    {x, 0, 10},
+    {x + 10, 0, 10},
+    {x, 0, 0},
+    {x + 10, 0, 0},
+
+    {x + 10, 0, 0},
+    {x + 10, 10, 0},
+    {x + 10, 0, 10},
+    {x + 10, 0, 10},
+    {x + 10, 10, 0},
+    {x + 10, 10, 10},
+
+    {x, 0, 0},
+    {x, 0, 10},
+    {x, 10, 0},
+    {x, 0, 10},
+    {x, 10, 10},
+    {x, 10, 0},
+  };
   
   v3_t *vi = 
     arena_cpy(
         &w->tmp_alloc, 
-        9 * sizeof(v3_t),
-        (v3_t[]){
-          {0, 0, 0},
-          {0, 10, 0},
-          {10, 10, 0},
-          {10, 10, 0},
-          {10, 0, 0},
-          {0, 0, 0},
-          {0, 10, 0},
-          {0, 10, 10},
-          {10, 10, 10}});
+        sizeof(cube),
+        cube
+      );
 
   rstr_vsh_t vsh = {
     .vi = vi,
     .i_size = sizeof(v3_t),
-    .ndc = arena_alloc(&w->tmp_alloc, 9 * sizeof(v3_t)),
+    .ndc = arena_alloc(&w->tmp_alloc, 36 * sizeof(v3_t)),
     .main = _tmp_main,
     .uni = &w->cam,
-    .n_verts = 9
+    .n_verts = 36
   };
 
   rstr_vsh(&vsh);
@@ -200,8 +236,6 @@ _wnd_proc(HWND hwnd,
 
       _wnd_update_cr(w);
       persp_cam_update_aspect(&w->cam, (float)w->w / w->h);
-
-      print("WM_CREATE: size <%d, %d>\n", w->w, w->h);
       return 0;
     }
     case WM_SIZE: {
@@ -221,7 +255,6 @@ _wnd_proc(HWND hwnd,
         w->key_state[wpar] = 2;
       } else {
         w->key_state[wpar] = 1;
-        print("code: %d\n", wpar);
       }
       return 0;
     }
@@ -279,9 +312,7 @@ wnd_new(HINSTANCE inst, int cmd_show) {
   *wp = (wnd_t){
     .mspf = 1.f / 60.f,
     .tmp_alloc = arena_new(4 * 1 << 20),
-    .w = 2304,
-    .h = 1440,
-    .cam = persp_cam_new((v3_t){0, 0, -10}, 
+    .cam = persp_cam_new((v3_t){0, 0, 10}, 
                          (v3_t){0, 1, 0}, 
                          -3.14159 / 2, 0,
                          0.01, 100,
@@ -292,7 +323,7 @@ wnd_new(HINSTANCE inst, int cmd_show) {
       class_name, "kyoto", 
       WS_VISIBLE|WS_OVERLAPPEDWINDOW, 
       CW_USEDEFAULT, CW_USEDEFAULT, 
-      wp->w, wp->h,
+      2304, 1440,
       NULL, NULL, 
       inst, wp);
 
@@ -309,6 +340,8 @@ wnd_new(HINSTANCE inst, int cmd_show) {
   if (!RegisterRawInputDevices(&mouse, 1, sizeof(RAWINPUTDEVICE))) {
     err("failed to register mouse");
   }
+
+  ShowCursor(false);
   
   return wp;
 }

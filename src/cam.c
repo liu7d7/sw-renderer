@@ -15,12 +15,17 @@ _persp_cam_update_vecs(persp_cam_t *c) {
   // should both be normalized already so yeah.
   c->up = v3_norm(v3_cross(c->front, c->right));
 
-  // @todo: fix this abomination
+  v3_t f = c->front;
+  v3_t s = c->right;
+  v3_t t = c->up;
+  v3_t eye = c->pos;
+
+  // @hack: wtf why is the x-axis and not the z-axis inverted
   c->view = (m4_t){
-    c->right.x, c->up.x, c->front.x, 0,
-    c->right.y, c->up.y, c->front.y, 0,
-    c->right.z, c->up.z, c->front.z, 0,
-    v3_v(c->pos), 1,
+    -s.x, t.x, f.x, 0,
+    -s.y, t.y, f.y, 0,
+    -s.z, t.z, f.z, 0,
+    v3_dot(eye, s), -v3_dot(eye, t), -v3_dot(eye, f), 1
   };
 }
 
@@ -43,7 +48,6 @@ persp_cam_new(v3_t pos, v3_t world_up,
         float radians yaw, float radians pitch, 
         float near, float far, 
         float radians fovy, float aspect) {
-  // @todo: finish
   persp_cam_t out = {
     .pos = pos, 
     .world_up = world_up, 
@@ -79,9 +83,9 @@ persp_cam_move(persp_cam_t *c,
   pos_delta = v3_add(pos_delta, v3_mul(c->right, move.x));
   pos_delta = v3_add(pos_delta, v3_mul(c->world_up, move.y));
 
-  c->pos = v3_add(c->pos, v3_mul(pos_delta, 0.1));
+  c->pos = v3_add(c->pos, v3_mul(pos_delta, 1));
 
-  c->pitch += dy * 0.005;
+  c->pitch -= dy * 0.005;
   c->yaw += dx * 0.005;
 
   if (c->pitch > 3.141 / 2.) c->pitch = 3.141 / 2.;
