@@ -1,0 +1,11 @@
+#include <GLFW/glfw3.h>
+
+struct wnd {
+  GLFWwindow *handle;
+  int w, h;
+};
+
+typedef struct wnd wnd_t;
+
+wnd_t wnd_new();
+void wnd_run(wnd_t *w);

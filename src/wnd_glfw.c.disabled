@@ -1,0 +1,39 @@
+#include "wnd.h"
+#include "err.h"
+#include <glad.h>
+
+wnd_t
+wnd_new() {
+  if (!glfw_init()) {
+    err("glfw_init");
+  }
+
+  glfw_window_hint(GLFW_VERSION_MAJOR, 3);
+  glfw_window_hint(GLFW_VERSION_MINOR, 3);
+  glfw_window_hint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+  glfw_window_hint(GLFW_CONTEXT_VERSION_MINOR, 6);
+  glfw_window_hint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+  glfw_window_hint(GLFW_RESIZABLE, GLFW_FALSE);
+
+  int w = 2304, h = 1440;
+
+  wnd_t wnd = {
+    .w = w,
+    .h = h,
+    .handle = glfw_create_window(w, h, "kyoto", NULL, NULL)
+  };
+
+  if (!glad_load_gl_loader((GLADloadproc *)glfw_get_proc_address)) {
+
+  }
+
+  return wnd;
+}
+
+void
+wnd_run(wnd_t *w) {
+  while (!glfw_window_should_close(w->handle)) {
+    glfw_poll_events();
+    glfw_swap_buffers(w->handle);
+  }
+}
