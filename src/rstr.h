@@ -34,4 +34,5 @@ struct rstr_fsh {
 
 void rstr_vsh_to_fsh(rstr_vsh_t *v, rstr_fsh_t *f, int w, int h, rstr_interp interp);
 
-color_t *rstr_test(rstr_vsh_t *v, int w, int h);
+// @todo: make caller pass in the buffer
+color_t *rstr_test(rstr_vsh_t *v, arena_t *arena, uint32_t w, uint32_t h);

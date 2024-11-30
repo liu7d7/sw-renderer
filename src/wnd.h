@@ -25,9 +25,10 @@ struct wnd {
   BITMAPINFO __bmi;
   color_t *scr;
   HDC __dc, __dib_dc;
-  int w, h, __top, __left;
+  uint32_t w, h;
+  int __top, __left;
   float mspf;
-  arena_t tmp_alloc;
+  arena_t tmp_alloc, scr_alloc;
   int8_t key_state[0xff];
   v2_t prev_mouse_pos, mouse_pos, delta_mouse_pos;
 
@@ -41,5 +42,3 @@ typedef struct wnd wnd_t;
 
 wnd_t *wnd_new(HINSTANCE inst, int cmd_show);
 void wnd_run(wnd_t *w);
-int wnd_clamp_x(wnd_t *w, int x);
-int wnd_clamp_y(wnd_t *w, int y);

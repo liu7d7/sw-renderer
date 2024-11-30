@@ -40,19 +40,9 @@ _wnd_dib_resize(wnd_t *w) {
 
 void
 _wnd_clear(wnd_t *w, color_t color) {
-  for (int i = 0; i < w->w * w->h; i++) {
+  for (uint32_t i = 0; i < w->w * w->h; i++) {
     w->scr[i] = color;
   }
-}
-
-int 
-wnd_clamp_x(wnd_t *w, int x) {
-  return min(w->w, max(0, x));
-}
-
-int 
-wnd_clamp_y(wnd_t *w, int y) {
-  return min(w->h, max(0, y));
 }
 
 v4_t 
@@ -70,12 +60,6 @@ _tmp_main(rstr_vsh_t *v,
 
 void
 _wnd_draw(wnd_t *w) {
-  _wnd_clear(w, (color_t){});
-
-  static float a = 0;
-
-  a += w->dt * 100;
-
   float x = w->t;
 
   v3_t cube[] = {
@@ -139,9 +123,8 @@ _wnd_draw(wnd_t *w) {
   };
 
   rstr_vsh(&vsh);
-  color_t *to_blit = rstr_test(&vsh, w->w, w->h);
+  color_t *to_blit = rstr_test(&vsh, &w->scr_alloc, w->w, w->h);
   memcpy(w->scr, to_blit, w->w * w->h * sizeof(color_t));
-  free(to_blit);
 }
 
 float 
@@ -160,7 +143,6 @@ _wnd_update(wnd_t *w, HDC pdc) {
     _wnd_dib_resize(w);
   }
 
-  LARGE_INTEGER elapsed;
   float dms;
   while ((dms = _time_delta(w, w->__prev_time, w->__time)) < w->mspf) {
     QueryPerformanceCounter(&w->__time);
@@ -210,6 +192,7 @@ _wnd_update_cr(wnd_t *w) {
   TITLEBARINFO tbi = {
     .cbSize = sizeof(TITLEBARINFO)
   };
+
   GetTitleBarInfo(w->wnd, &tbi);
   int title_bar_height = tbi.rcTitleBar.bottom - tbi.rcTitleBar.top;
   w->w = cr.right - cr.left;
@@ -312,10 +295,11 @@ wnd_new(HINSTANCE inst, int cmd_show) {
   *wp = (wnd_t){
     .mspf = 1.f / 60.f,
     .tmp_alloc = arena_new(4 * 1 << 20),
-    .cam = persp_cam_new((v3_t){0, 0, 10}, 
+    .scr_alloc = arena_new(256 * 1 << 20),
+    .cam = persp_cam_new((v3_t){0, 0, 30}, 
                          (v3_t){0, 1, 0}, 
                          -3.14159 / 2, 0,
-                         0.01, 100,
+                         0.01, 256,
                          3.14159 / 4., 16. / 10.)
   };
 
@@ -363,43 +347,11 @@ event:
     }
 
     arena_reset(&w->tmp_alloc);
+    arena_reset(&w->scr_alloc);
   }
 }
 
 /*
-void
-_plot_tri_bounding_line(int *min_x, 
-                        int *max_x, 
-                        int x0, 
-                        int y0, 
-                        int x1, 
-                        int y1) {
-  // see https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
-
-  int dx = abs(x1 - x0);
-  int sx = x0 < x1 ? 1 : -1;
-  int dy = -abs(y1 - y0);
-  int sy = y0 < y1 ? 1 : -1;
-  int error = dx + dy;
-
-  for (;;) {
-    min_x[y0] = min(min_x[y0], x0);
-    max_x[y0] = max(max_x[y0], x0);
-
-    if (x0 == x1 && y0 == y1) break;
-    int e2 = 2 * error;
-
-    if (e2 >= dy) {
-      error += dy;
-      x0 += sx;
-    }
-
-    if (e2 <= dx) {
-      error += dx;
-      y0 += sy;
-    }
-  }
-}
 
 void
 _wnd_tri(wnd_t *w,

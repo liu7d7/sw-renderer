@@ -38,8 +38,8 @@ persp_cam_update_aspect(persp_cam_t *c, float aspect) {
   c->proj = (m4_t){
     1.f / (fov * aspect), 0, 0, 0,
     0, 1.f / fov, 0, 0,
-    0, 0, -f / (f - n), -1,
-    0, 0, -f * n / (f - n), 0
+    0, 0, -1 / (-f + n), -1,
+    0, 0, n / (-f + n), 0
   };
 }
 
