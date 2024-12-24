@@ -83,7 +83,7 @@ persp_cam_move(persp_cam_t *c,
   pos_delta = v3_add(pos_delta, v3_mul(c->right, move.x));
   pos_delta = v3_add(pos_delta, v3_mul(c->world_up, move.y));
 
-  c->pos = v3_add(c->pos, v3_mul(pos_delta, 1));
+  c->pos = v3_add(c->pos, v3_mul(pos_delta, 0.03));
 
   c->pitch -= dy * 0.005;
   c->yaw += dx * 0.005;

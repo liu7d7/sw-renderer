@@ -33,7 +33,7 @@ _wnd_dib_resize(wnd_t *w) {
       &scr,
       0, 0);
 
-  w->scr = scr;
+  w->scr = w->fsh.fo = scr;
 
   SelectObject(w->__dib_dc, w->__dib);
 }
@@ -45,86 +45,125 @@ _wnd_clear(wnd_t *w, color_t color) {
   }
 }
 
+typedef struct _cube_vtx _cube_vtx_t;
+
+struct _cube_vtx {
+  v3_t pos;
+  v3_t color;
+};
+
 v4_t 
-_tmp_main(rstr_vsh_t *v, 
-          void const *uni, 
-          void const *vi, 
-          void *vo) {
-  v3_t const *in = vi;
+_tmp_v_main(vsh_t*, 
+            void const *uni, 
+            void const *vi, 
+            void *_vo) {
+  _cube_vtx_t const *in = vi;
+  v3_t *vo = _vo;
+
   persp_cam_t const *cam = uni;
-  v4_t world = {in->x, in->y, in->z, 1};
+  v4_t world = {in->pos.x, in->pos.y, in->pos.z, 1};
   v4_t camera = v4_m4_mul(world, cam->view);
   v4_t ndc = v4_m4_mul(camera, cam->proj);
+
+  *vo = in->color;
   return ndc;
 }
 
 void
+_tmp_f_main(fsh_t*,
+            void const *,
+            void const *_vo,
+            float const *,
+            void *_fo) {
+  color_t *fo = _fo;
+  v3_t const *vo = _vo;
+
+  *fo = (color_t){
+    .r = vo->r * 255,
+    .g = vo->g * 255,
+    .b = vo->b * 255,
+  };
+}
+
+void
+_tmp_interp(void const *_v0, 
+            void const *_v1, 
+            void const *_v2, 
+            float u, 
+            float v, 
+            float w, 
+            void *_vo) {
+  v3_t const *v0 = _v0;
+  v3_t const *v1 = _v1;
+  v3_t const *v2 = _v2;
+  v3_t *vo = _vo;
+
+  // skip vo.pos because we don't use it.
+
+  *vo = v3_add(
+      v3_mul(*v0, u), 
+      v3_add(v3_mul(*v1, v), v3_mul(*v2, w)));
+}
+
+global const _cube_vtx_t _000 = {{0, 0, 0}, {0, 0, 0}};
+global const _cube_vtx_t _001 = {{0, 0, 1}, {0, 0, 1}};
+global const _cube_vtx_t _010 = {{0, 1, 0}, {0, 1, 0}};
+global const _cube_vtx_t _011 = {{0, 1, 1}, {0, 1, 1}};
+global const _cube_vtx_t _100 = {{1, 0, 0}, {1, 0, 0}};
+global const _cube_vtx_t _101 = {{1, 0, 1}, {1, 0, 1}};
+global const _cube_vtx_t _110 = {{1, 1, 0}, {1, 1, 0}};
+global const _cube_vtx_t _111 = {{1, 1, 1}, {1, 1, 1}};
+
+global const _cube_vtx_t cube[] = {
+  _000,
+  _001,
+  _011,
+  _011,
+  _010,
+  _000,
+
+  _111,
+  _101,
+  _100,
+  _100,
+  _110,
+  _111,
+
+  _000,
+  _010,
+  _110,
+  _110,
+  _100,
+  _000,
+
+  _111,
+  _011,
+  _001,
+  _001,
+  _101,
+  _111,
+
+  _101,
+  _001,
+  _000,
+  _000,
+  _100,
+  _101,
+
+  _010,
+  _011,
+  _111,
+  _111,
+  _110,
+  _010
+};
+
+void
 _wnd_draw(wnd_t *w) {
-  float x = w->t;
-
-  v3_t cube[] = {
-    {x, 0, 0},
-    {x, 10, 0},
-    {x + 10, 10, 0},
-    {x + 10, 10, 0},
-    {x + 10, 0, 0},
-    {x, 0, 0},
-
-    {x, 10, 0},
-    {x, 10, 10},
-    {x + 10, 10, 10},
-    {x + 10, 10, 10},
-    {x + 10, 10, 0},
-    {x, 10, 0},
-
-    {x, 0, 10},
-    {x + 10, 10, 10},
-    {x, 10, 10},
-    {x + 10, 10, 10},
-    {x, 0, 10},
-    {x + 10, 0, 10},
-
-    {x, 0, 0},
-    {x + 10, 0, 10},
-    {x, 0, 10},
-    {x + 10, 0, 10},
-    {x, 0, 0},
-    {x + 10, 0, 0},
-
-    {x + 10, 0, 0},
-    {x + 10, 10, 0},
-    {x + 10, 0, 10},
-    {x + 10, 0, 10},
-    {x + 10, 10, 0},
-    {x + 10, 10, 10},
-
-    {x, 0, 0},
-    {x, 0, 10},
-    {x, 10, 0},
-    {x, 0, 10},
-    {x, 10, 10},
-    {x, 10, 0},
-  };
-  
-  v3_t *vi = 
-    arena_cpy(
-        &w->tmp_alloc, 
-        sizeof(cube),
-        cube
-      );
-
-  rstr_vsh_t vsh = {
-    .vi = vi,
-    .i_size = sizeof(v3_t),
-    .ndc = arena_alloc(&w->tmp_alloc, 36 * sizeof(v3_t)),
-    .main = _tmp_main,
-    .uni = &w->cam,
-    .n_verts = 36
-  };
-
-  rstr_vsh(&vsh);
-  color_t *to_blit = rstr_test(&vsh, &w->scr_alloc, w->w, w->h);
-  memcpy(w->scr, to_blit, w->w * w->h * sizeof(color_t));
+  memset(w->scr, 0, w->w * w->h * sizeof(*w->scr));
+  vsh_exec(&w->vsh);
+  vsh_to_fsh(&w->fsh, &w->vsh);
+  fsh_exec(&w->fsh, &w->vsh);
 }
 
 float 
@@ -174,7 +213,7 @@ _wnd_update(wnd_t *w, HDC pdc) {
 
   w->__prev_time = w->__time;
 
-  StretchBlt(pdc, 0, 0, w->w, w->h, w->__dib_dc, 0, 0, w->w, w->h, SRCCOPY);
+  StretchBlt(pdc, 0, 0, w->__w, w->__h, w->__dib_dc, 0, 0, w->w, w->h, SRCCOPY);
   GdiFlush();
 
   // @todo: do this on fixed update
@@ -195,8 +234,10 @@ _wnd_update_cr(wnd_t *w) {
 
   GetTitleBarInfo(w->wnd, &tbi);
   int title_bar_height = tbi.rcTitleBar.bottom - tbi.rcTitleBar.top;
-  w->w = cr.right - cr.left;
-  w->h = cr.bottom - cr.top - title_bar_height;
+  w->__w = cr.right - cr.left;
+  w->__h = cr.bottom - cr.top - title_bar_height;
+  w->w = w->__w / 4;
+  w->h = w->__h / 4;
   w->__top = cr.top + title_bar_height;
   w->__left = cr.left;
 }
@@ -218,7 +259,29 @@ _wnd_proc(HWND hwnd,
       QueryPerformanceFrequency(&w->__freq);
 
       _wnd_update_cr(w);
+      _wnd_dib_resize(w);
       persp_cam_update_aspect(&w->cam, (float)w->w / w->h);
+
+      w->vsh = (vsh_t){
+        .vi = cube,
+        .i_size = sizeof(*cube),
+        .o_size = sizeof(v3_t),
+        .main = _tmp_v_main,
+        .uni = &w->cam,
+        .n_verts = 36,
+        .arena = &w->scr_alloc
+      };
+
+      w->fsh = (fsh_t){
+        .arena = &w->scr_alloc,
+        .fo = w->scr,
+        .o_size = sizeof(*w->scr),
+        .w = w->w,
+        .h = w->h,
+        .main = _tmp_f_main,
+        .interp = _tmp_interp
+      };
+
       return 0;
     }
     case WM_SIZE: {
@@ -255,7 +318,7 @@ _wnd_proc(HWND hwnd,
 
       if (raw->header.dwType == RIM_TYPEMOUSE) {
         w->delta_mouse_pos = (v2_t){raw->data.mouse.lLastX, raw->data.mouse.lLastY};
-        SetCursorPos(w->__left + w->w / 2, w->__top + w->h / 2);
+        SetCursorPos(w->__left + w->__w / 2, w->__top + w->__h / 2);
       }
 
       arena_ret(&w->tmp_alloc, buf);
@@ -295,7 +358,7 @@ wnd_new(HINSTANCE inst, int cmd_show) {
   *wp = (wnd_t){
     .mspf = 1.f / 60.f,
     .tmp_alloc = arena_new(4 * 1 << 20),
-    .scr_alloc = arena_new(256 * 1 << 20),
+    .scr_alloc = arena_new(1 << 28),
     .cam = persp_cam_new((v3_t){0, 0, 30}, 
                          (v3_t){0, 1, 0}, 
                          -3.14159 / 2, 0,
@@ -304,7 +367,7 @@ wnd_new(HINSTANCE inst, int cmd_show) {
   };
 
   HWND wnd = CreateWindow(
-      class_name, "kyoto", 
+      class_name, class_name, 
       WS_VISIBLE|WS_OVERLAPPEDWINDOW, 
       CW_USEDEFAULT, CW_USEDEFAULT, 
       2304, 1440,

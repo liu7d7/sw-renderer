@@ -5,7 +5,7 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-set(CMAKE_C_FLAGS "-Wall -Wextra -Wno-missing-braces")
+set(CMAKE_C_FLAGS "-Wall -Wextra -Wno-missing-braces -fopenmp=libomp")
 set(CMAKE_C_FLAGS_DEBUG "-g -O2")
 set(CMAKE_C_FLAGS_RELEASE "-O3")
 

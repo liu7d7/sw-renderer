@@ -8,7 +8,8 @@ arena_new(int size) {
   return (arena_t){
     .buf = malloc(size),
     .pos = 0,
-    .high_water_mark = 0
+    .high_water_mark = 0,
+    .size = size,
   };
 }
 
@@ -18,6 +19,11 @@ arena_alloc(arena_t *a, int size) {
   a->pos += size + 4;
   *(int *)(a->buf + p) = a->pos;
   a->high_water_mark = max(a->high_water_mark, a->pos);
+
+  if (a->high_water_mark >= a->size) {
+    err("exceeded size! high water mark: %d", a->high_water_mark);
+  }
+
   return a->buf + p + 4;
 }
 

@@ -2,23 +2,25 @@
 #include "err.h"
 
 void
-rstr_vsh(rstr_vsh_t *r) {
-  for (int i = 0; i < r->n_verts; i++) {
-    void const *vi = r->vi + i * r->i_size;
-    void *vo = r->vo + i * r->o_size;
+vsh_exec(vsh_t *r) {
+  int n_verts = r->n_verts;
+  void const *_vi = r->vi;
+  r->__vo = arena_alloc(r->arena, r->o_size * r->n_verts);
+  void *_vo = r->__vo;
+  vsh_main main = r->main;
+  r->__ndc = arena_alloc(r->arena, sizeof(v3_t) * r->n_verts);
+  v3_t *ndc = r->__ndc;
+  int i_size = r->i_size, o_size = r->o_size;
+  void const *uni = r->uni;
 
-    v4_t before_w_div = r->main(r, r->uni, vi, vo);
+  for (int i = 0; i < n_verts; i++) {
+    void const *vi = _vi + i * i_size;
+    void *vo = _vo + i * o_size;
+
+    v4_t before_w_div = main(r, uni, vi, vo);
     before_w_div.xy = v2_mul(before_w_div.xy, 1. / before_w_div.w);
-    r->ndc[i] = before_w_div.xyz;
+    ndc[i] = before_w_div.xyz;
   }
-}
-
-void
-rstr_vsh_to_fsh(rstr_vsh_t *v, 
-                rstr_fsh_t *f, 
-                int w, int h, 
-                rstr_interp interp) {
-
 }
 
 inline float 
@@ -28,6 +30,111 @@ _edge_fn(v2_t v0, v2_t v1, v2_t p) {
   v2_t b = v2_sub(p, v0);
 
   return v2_cross(a, b);
+}
+
+void
+vsh_to_fsh(fsh_t *f,
+           vsh_t *v) {
+  uint32_t w = f->w, h = f->h;
+  v3_t *ndc = v->__ndc;
+
+  fi_t *fi = arena_alloc_1(f->arena, w * h * sizeof(fi_t));
+  float *depth = arena_alloc_0(f->arena, w * h * sizeof(float));
+
+  f->__fi = fi;
+  f->__depth = depth;
+
+  for (uint32_t i = 0; i < w * h; i++) {
+    depth[i] = HUGE_VAL;
+  }
+
+  for (int i = 0; i < v->n_verts; i += 3) {
+    // to remap -1..1 to 0..w
+    v3_t mul = {0.5 * w, 0.5 * h, 1};
+    v3_t add = {0.5 * w, 0.5 * h, 0};
+
+    v3_t v0 = v3_add(v3_mul_v(ndc[i], mul), add);
+    v3_t v1 = v3_add(v3_mul_v(ndc[i + 1], mul), add);
+    v3_t v2 = v3_add(v3_mul_v(ndc[i + 2], mul), add);
+
+    float min_y = min(v0.y, min(v1.y, v2.y));
+    float max_y = max(v0.y, max(v1.y, v2.y));
+
+    float min_x = min(v0.x, min(v1.x, v2.x));
+    float max_x = max(v0.x, max(v1.x, v2.x));
+
+    uint32_t yi = max(0, min_y), yf = min(h - 1, max(0, max_y));
+    uint32_t xi = max(0, min_x), xf = min(w - 1, max(0, max_x));
+
+    float area = 1. / _edge_fn(v0.xy, v1.xy, v2.xy);
+
+    for (uint32_t y = yi; y <= yf; y++) {
+      for (uint32_t x = xi; x <= xf; x++) {
+        v2_t p = {x, y};
+        float e01 = _edge_fn(v0.xy, v1.xy, p);       
+        float e12 = _edge_fn(v1.xy, v2.xy, p);     
+        float e20 = _edge_fn(v2.xy, v0.xy, p);
+        // @todo: depth, perspective correct
+
+        bool a = e01 >= 0 & e12 >= 0 & e20 >= 0;
+
+        e01 *= area;
+        e12 *= area;
+        e20 *= area;
+        float d = e01 * v2.z + e12 * v0.z + e20 * v1.z;
+        a &= depth[y * w + x] >= d;
+
+        float ndepth[] = {depth[y * w + x], d};
+        fi_t nfi[] = {
+          fi[y * w + x], 
+          (fi_t){
+            (uint16_t)i, 
+            (uint16_t)(e12 * UINT16_MAX),
+            (uint16_t)(e20 * UINT16_MAX),
+            (uint16_t)(e01 * UINT16_MAX),
+          }
+        };
+
+        depth[y * w + x] = ndepth[a];
+        fi[y * w + x] = nfi[a];
+      }
+    }
+  }
+}
+
+void 
+fsh_exec(fsh_t *f, vsh_t *v) {
+  uint32_t h = f->h, w = f->w;
+  void *fo = f->fo;
+  fi_t *fi = f->__fi;
+  void *vo = v->__vo;
+  int o_size = v->o_size, fo_size = f->o_size;
+  fsh_interp interp = f->interp;
+  fsh_main main = f->main;
+  float *depth = f->__depth;
+  void const *uni = f->uni;
+  void *interped = arena_alloc(f->arena, o_size);
+
+  for (uint32_t r = 0; r < h; r++) {
+    for (uint32_t c = 0; c < w; c++) {
+      fi_t i = fi[r * w + c];
+      if (i.v0 == UINT16_MAX) {
+        continue;
+      }
+
+      void *v0 = vo + o_size * i.v0;
+      void *v1 = vo + o_size * (i.v0 + 1);
+      void *v2 = vo + o_size * (i.v0 + 2);
+
+      float _u = ((float)i.u) / UINT16_MAX;
+      float _v = ((float)i.v) / UINT16_MAX;
+      float _w = ((float)i.w) / UINT16_MAX;
+
+      interp(v0, v1, v2, _u, _v, _w, interped);
+
+      main(f, uni, interped, depth, fo + (r * w + c) * fo_size);
+    }
+  }
 }
 
 void
@@ -63,58 +170,4 @@ _plot_tri_bounding_line(uint32_t *min_x,
 
     if (x0 == x1 && y0 == y1) break;
   }
-}
-
-color_t*
-rstr_test(rstr_vsh_t *v, arena_t *arena, uint32_t w, uint32_t h) {
-  color_t *color = arena_alloc_0(arena, w * h * sizeof(color_t));
-  float *depth = arena_alloc_0(arena, w * h * sizeof(float));
-  for (uint32_t i = 0; i < w * h; i++) {
-    depth[i] = HUGE_VAL;
-  }
-
-  for (int i = 0; i < v->n_verts; i += 3) {
-    // to remap -1..1 to 0..w
-    v3_t mul = {0.5 * w, 0.5 * h, 1};
-    v3_t add = {0.5 * w, 0.5 * h, 0};
-
-    v3_t v0 = v3_add(v3_mul_v(v->ndc[i], mul), add);
-    v3_t v1 = v3_add(v3_mul_v(v->ndc[i + 1], mul), add);
-    v3_t v2 = v3_add(v3_mul_v(v->ndc[i + 2], mul), add);
-
-    float min_y = min(v0.y, min(v1.y, v2.y));
-    float max_y = max(v0.y, max(v1.y, v2.y));
-
-    float min_x = min(v0.x, min(v1.x, v2.x));
-    float max_x = max(v0.x, max(v1.x, v2.x));
-
-    uint32_t yi = max(0, min_y), yf = min(h, max(0, max_y));
-    uint32_t xi = max(0, min_x), xf = min(w, max(0, max_x));
-
-    float area = 1. / _edge_fn(v0.xy, v1.xy, v2.xy);
-
-#pragma omp parallel for
-    for (uint32_t y = yi; y < yf; y++) {
-      for (uint32_t x = xi; x < xf; x++) {
-        v2_t p = {x + 0.5, y + 0.5};
-        float e01 = _edge_fn(v0.xy, v1.xy, p);       
-        float e12 = _edge_fn(v1.xy, v2.xy, p);     
-        float e20 = _edge_fn(v2.xy, v0.xy, p);
-        // @todo: depth, perspective correct
-
-        if (e01 >= 0 && e12 >= 0 && e20 >= 0) {
-          e01 *= area;
-          e12 *= area;
-          e20 *= area;
-          float d = e01 * v2.z + e12 * v0.z + e20 * v1.z;
-          if (depth[y * w + x] >= d) {
-            depth[y * w + x] = d;
-            color[y * w + x] = (color_t){255 * d, 255 * d, 255 * d};
-          }
-        }
-      }
-    }
-  }
-
-  return color;
 }

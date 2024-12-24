@@ -1,5 +1,7 @@
+#include "err.h"
 #include "wnd.h"
 #include <windows.h> 
+#include <omp.h>
 
 int 
 WinMain(HINSTANCE inst, 

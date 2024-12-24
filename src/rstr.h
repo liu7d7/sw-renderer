@@ -1,38 +1,54 @@
 #pragma once
 
 #include "vecmath.h"
-#include "wnd.h"
+#include "stdint.h"
+#include "arena.h"
 
 // @todo: get rid of data interleaving, hard to express in C. 
 
-typedef struct rstr_vsh rstr_vsh_t;
+typedef struct vsh vsh_t;
 
-typedef v4_t (*rstr_vsh_main)(rstr_vsh_t *r, void const *uni, void const *vi, void *vo);
-typedef void (*rstr_interp)(void const *vi0, void const *vi1, void const *vi2, float u, float v, float w, void *vo);
+typedef v4_t (*vsh_main)(vsh_t *r, void const *uni, void const *vi, void *vo);
 
-struct rstr_vsh {
+struct vsh {
   void const *vi;
   void const *uni;
-  void *vo;
-  v3_t *ndc;
+  void *__vo;
+  v3_t *__ndc;
   int i_size, o_size;
   int n_verts;
-  rstr_vsh_main main;
+  vsh_main main;
+  arena_t *arena;
 };
 
-void rstr_vsh(rstr_vsh_t *r);
+void vsh_exec(vsh_t *r);
 
-typedef struct rstr_fsh rstr_fsh_t;
+typedef struct fi fi_t;
 
-struct rstr_fsh {
-  void const *fi;
+struct fi {
+  uint16_t v0;
+  uint16_t u;
+  uint16_t v;
+  uint16_t w;
+} __attribute__((packed));
+
+typedef struct fsh fsh_t;
+
+typedef void (*fsh_main)(fsh_t *f, void const *uni, void const *vo, float const *depth, void *fo);
+typedef void (*fsh_interp)(void const *v0, void const *v1, void const *v2, float u, float v, float w, void *vo);
+
+struct fsh {
+  fi_t *__fi;
+  float *__depth;
   void *fo;
-  void *uni;
-  int i_size, o_size;
-  int w, h;
+  void const *uni;
+  int o_size, __v_size;
+  uint32_t w, h;
+  fsh_interp interp;
+  arena_t *arena;
+  fsh_main main;
 };
 
-void rstr_vsh_to_fsh(rstr_vsh_t *v, rstr_fsh_t *f, int w, int h, rstr_interp interp);
+void vsh_to_fsh(fsh_t *f, vsh_t *v);
 
-// @todo: make caller pass in the buffer
-color_t *rstr_test(rstr_vsh_t *v, arena_t *arena, uint32_t w, uint32_t h);
+void fsh_exec(fsh_t *f, vsh_t *v);

@@ -43,13 +43,14 @@ v2_mul(v2_t a, float b) {
 // row vector
 union v3 {
   struct { float x, y, z; };
+  struct { float r, g, b; };
   struct { float _00, _01, _02; };
   float e[3];
   v2_t xy;
 };
 
 #define v3_s "<%.2f, %.2f, %.2f>"
-#define v3_v(v) v.x, v.y, v.z
+#define v3_v(v) (v).x, (v).y, (v).z
 #define v3_nv(v) -v.x, -v.y, -v.z
 
 typedef union v3 v3_t;

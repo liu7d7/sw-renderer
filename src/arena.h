@@ -4,6 +4,7 @@ struct arena {
   void *buf;
   int pos;
   int high_water_mark;
+  int size;
 };
 
 typedef struct arena arena_t;
