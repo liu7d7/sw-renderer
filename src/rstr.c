@@ -1,5 +1,6 @@
 #include "rstr.h"
 #include "err.h"
+#include "omp.h"
 
 void
 vsh_exec(vsh_t *r) {
@@ -13,12 +14,14 @@ vsh_exec(vsh_t *r) {
   int i_size = r->i_size, o_size = r->o_size;
   void const *uni = r->uni;
 
+#pragma omp parallel for
   for (int i = 0; i < n_verts; i++) {
     void const *vi = _vi + i * i_size;
     void *vo = _vo + i * o_size;
 
     v4_t before_w_div = main(r, uni, vi, vo);
     before_w_div.xy = v2_mul(before_w_div.xy, 1. / before_w_div.w);
+    before_w_div.z = 1.f / before_w_div.z;
     ndc[i] = before_w_div.xyz;
   }
 }
@@ -43,10 +46,6 @@ vsh_to_fsh(fsh_t *f,
 
   f->__fi = fi;
   f->__depth = depth;
-
-  for (uint32_t i = 0; i < w * h; i++) {
-    depth[i] = HUGE_VAL;
-  }
 
   for (int i = 0; i < v->n_verts; i += 3) {
     // to remap -1..1 to 0..w
@@ -82,7 +81,7 @@ vsh_to_fsh(fsh_t *f,
         e12 *= area;
         e20 *= area;
         float d = e01 * v2.z + e12 * v0.z + e20 * v1.z;
-        a &= depth[y * w + x] >= d;
+        a &= depth[y * w + x] <= d;
 
         float ndepth[] = {depth[y * w + x], d};
         fi_t nfi[] = {
@@ -113,8 +112,8 @@ fsh_exec(fsh_t *f, vsh_t *v) {
   fsh_main main = f->main;
   float *depth = f->__depth;
   void const *uni = f->uni;
-  void *interped = arena_alloc(f->arena, o_size);
 
+#pragma omp parallel for
   for (uint32_t r = 0; r < h; r++) {
     for (uint32_t c = 0; c < w; c++) {
       fi_t i = fi[r * w + c];
@@ -130,7 +129,8 @@ fsh_exec(fsh_t *f, vsh_t *v) {
       float _v = ((float)i.v) / UINT16_MAX;
       float _w = ((float)i.w) / UINT16_MAX;
 
-      interp(v0, v1, v2, _u, _v, _w, interped);
+      uint8_t interped[o_size];
+      interp(v0, v1, v2, _u, _v, _w, depth[r * w + c], interped);
 
       main(f, uni, interped, depth, fo + (r * w + c) * fo_size);
     }

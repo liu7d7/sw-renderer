@@ -1,5 +1,4 @@
 #include "cam.h"
-#include "err.h"
 
 void 
 _persp_cam_update_vecs(persp_cam_t *c) {

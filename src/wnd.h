@@ -5,6 +5,7 @@
 #include "macro.h"
 #include "arena.h"
 #include "cam.h"
+#include "mesh.h"
 #include "rstr.h"
 
 global bool wnd_running = true;
@@ -34,6 +35,7 @@ struct wnd {
   v2_t prev_mouse_pos, mouse_pos, delta_mouse_pos;
   vsh_t vsh;
   fsh_t fsh;
+  mesh_t mesh;
 
   LARGE_INTEGER __start, __prev_time, __time, __freq; /* ticks, ticks, ticks/second */
   float dt, t;

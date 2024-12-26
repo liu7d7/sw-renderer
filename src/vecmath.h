@@ -57,6 +57,8 @@ typedef union v3 v3_t;
 
 static const v3_t v3_0 = (v3_t){};
 
+
+
 inline static v3_t 
 v3_cross(v3_t a, v3_t b) {
   return (v3_t){a.y * b.z - a.z * b.y, 
@@ -110,6 +112,11 @@ v3_add(v3_t a, v3_t b) {
 inline static v3_t
 v3_sub(v3_t a, v3_t b) {
   return (v3_t){a.x - b.x, a.y - b.y, a.z - b.z};
+}
+
+inline static v3_t
+v3_reflect(v3_t i, v3_t n) {
+  return v3_sub(i, v3_mul(n, 2 * v3_dot(n, i)));
 }
 
 // row vector

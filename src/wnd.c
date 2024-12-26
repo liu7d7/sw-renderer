@@ -5,6 +5,7 @@
 #include "rstr.h"
 #include <tgmath.h>
 #include "vecmath.h"
+#include "mesh.h"
 
 void
 _wnd_dib_resize(wnd_t *w) {
@@ -45,43 +46,63 @@ _wnd_clear(wnd_t *w, color_t color) {
   }
 }
 
-typedef struct _cube_vtx _cube_vtx_t;
-
-struct _cube_vtx {
-  v3_t pos;
-  v3_t color;
-};
-
 v4_t 
 _tmp_v_main(vsh_t*, 
             void const *uni, 
             void const *vi, 
             void *_vo) {
-  _cube_vtx_t const *in = vi;
-  v3_t *vo = _vo;
+  vert_t const *in = vi;
+  vert_t *vo = _vo;
 
   persp_cam_t const *cam = uni;
   v4_t world = {in->pos.x, in->pos.y, in->pos.z, 1};
   v4_t camera = v4_m4_mul(world, cam->view);
   v4_t ndc = v4_m4_mul(camera, cam->proj);
 
-  *vo = in->color;
+  vo->pos = v3_mul(in->pos, 1.f / ndc.z);
+  vo->norm = v3_mul(in->norm, 1.f / ndc.z);
+  vo->tex = v2_mul(in->tex, 1.f / ndc.z);
+  vo->mtl = in->mtl;
+
   return ndc;
 }
 
+struct _tmp_f_uni {
+  persp_cam_t *cam;
+  mat_t *mats;
+};
+
 void
 _tmp_f_main(fsh_t*,
-            void const *,
+            void const *_uni,
             void const *_vo,
             float const *,
             void *_fo) {
+  static const v3_t light_dir = {0.57735026919, 0.57735026919, 0.57735026919};
+
   color_t *fo = _fo;
-  v3_t const *vo = _vo;
+  vert_t const *vo = _vo;
+  struct _tmp_f_uni const *uni = _uni;
+  mat_t mat = uni->mats[vo->mtl];
+
+  v3_t color = v3_mul(mat.ka, 0.3);
+
+  float diffuse = max(v3_dot(vo->norm, light_dir), 0);
+  color = v3_add(color, v3_mul(mat.kd, diffuse * 0.5));
+
+  v3_t view_dir = v3_norm(v3_sub(uni->cam->pos, vo->pos));
+  v3_t reflect_dir = v3_reflect(v3_mul(light_dir, -1), vo->norm);
+  float spec = pow(max(v3_dot(view_dir, reflect_dir), 0.0), mat.ns);
+  color = v3_add(color, v3_mul(mat.ks, spec * 0.5));
+
+  color.r = min(1, max(0, color.r));
+  color.g = min(1, max(0, color.g));
+  color.b = min(1, max(0, color.b));
 
   *fo = (color_t){
-    .r = vo->r * 255,
-    .g = vo->g * 255,
-    .b = vo->b * 255,
+    .r = color.r * 255,
+    .g = color.g * 255,
+    .b = color.b * 255,
   };
 }
 
@@ -92,74 +113,42 @@ _tmp_interp(void const *_v0,
             float u, 
             float v, 
             float w, 
+            float z,
             void *_vo) {
-  v3_t const *v0 = _v0;
-  v3_t const *v1 = _v1;
-  v3_t const *v2 = _v2;
-  v3_t *vo = _vo;
+  vert_t const *v0 = _v0;
+  vert_t const *v1 = _v1;
+  vert_t const *v2 = _v2;
+  vert_t *vo = _vo;
 
   // skip vo.pos because we don't use it.
 
-  *vo = v3_add(
-      v3_mul(*v0, u), 
-      v3_add(v3_mul(*v1, v), v3_mul(*v2, w)));
+  vo->pos = 
+    v3_mul(
+      v3_add(
+        v3_mul(v0->pos, u), 
+        v3_add(v3_mul(v1->pos, v), v3_mul(v2->pos, w))), 1.f / z);
+
+  vo->norm = 
+    v3_mul(
+      v3_add(
+        v3_mul(v0->norm, u), 
+        v3_add(v3_mul(v1->norm, v), v3_mul(v2->norm, w))), 1.f / z);
+
+  vo->tex = 
+    v2_mul(
+      v2_add(
+        v2_mul(v0->tex, u), 
+        v2_add(v2_mul(v1->tex, v), v2_mul(v2->tex, w))), 1.f / z);
+
+  vo->mtl = v0->mtl;
 }
-
-global const _cube_vtx_t _000 = {{0, 0, 0}, {0, 0, 0}};
-global const _cube_vtx_t _001 = {{0, 0, 1}, {0, 0, 1}};
-global const _cube_vtx_t _010 = {{0, 1, 0}, {0, 1, 0}};
-global const _cube_vtx_t _011 = {{0, 1, 1}, {0, 1, 1}};
-global const _cube_vtx_t _100 = {{1, 0, 0}, {1, 0, 0}};
-global const _cube_vtx_t _101 = {{1, 0, 1}, {1, 0, 1}};
-global const _cube_vtx_t _110 = {{1, 1, 0}, {1, 1, 0}};
-global const _cube_vtx_t _111 = {{1, 1, 1}, {1, 1, 1}};
-
-global const _cube_vtx_t cube[] = {
-  _000,
-  _001,
-  _011,
-  _011,
-  _010,
-  _000,
-
-  _111,
-  _101,
-  _100,
-  _100,
-  _110,
-  _111,
-
-  _000,
-  _010,
-  _110,
-  _110,
-  _100,
-  _000,
-
-  _111,
-  _011,
-  _001,
-  _001,
-  _101,
-  _111,
-
-  _101,
-  _001,
-  _000,
-  _000,
-  _100,
-  _101,
-
-  _010,
-  _011,
-  _111,
-  _111,
-  _110,
-  _010
-};
 
 void
 _wnd_draw(wnd_t *w) {
+  struct _tmp_f_uni *uni = w->fsh.uni;
+  uni->cam = &w->cam;
+  uni->mats = w->mesh.mats;
+
   memset(w->scr, 0, w->w * w->h * sizeof(*w->scr));
   vsh_exec(&w->vsh);
   vsh_to_fsh(&w->fsh, &w->vsh);
@@ -208,13 +197,16 @@ _wnd_update(wnd_t *w, HDC pdc) {
   persp_cam_move(&w->cam, f, b, l, r, u, d, v2_v(w->delta_mouse_pos));
   w->prev_mouse_pos = w->mouse_pos;
   w->delta_mouse_pos = (v2_t){};
+  w->__prev_time = w->__time;
 
   _wnd_draw(w);
 
-  w->__prev_time = w->__time;
-
   StretchBlt(pdc, 0, 0, w->__w, w->__h, w->__dib_dc, 0, 0, w->w, w->h, SRCCOPY);
   GdiFlush();
+
+  char *text = arena_alloc(&w->tmp_alloc, 64);
+  sprintf_s(text, 64, "kyoto | xyz: "v3_s", yp: <%.2f, %.2f>", v3_v(w->cam.pos), w->cam.yaw, w->cam.pitch);
+  SetWindowText(w->wnd, text);
 
   // @todo: do this on fixed update
   for (int i = 0; i < 0xff; i++) {
@@ -236,8 +228,8 @@ _wnd_update_cr(wnd_t *w) {
   int title_bar_height = tbi.rcTitleBar.bottom - tbi.rcTitleBar.top;
   w->__w = cr.right - cr.left;
   w->__h = cr.bottom - cr.top - title_bar_height;
-  w->w = w->__w / 4;
-  w->h = w->__h / 4;
+  w->w = w->__w / 2;
+  w->h = w->__h / 2;
   w->__top = cr.top + title_bar_height;
   w->__left = cr.left;
 }
@@ -262,13 +254,15 @@ _wnd_proc(HWND hwnd,
       _wnd_dib_resize(w);
       persp_cam_update_aspect(&w->cam, (float)w->w / w->h);
 
+      mesh_t mesh = w->mesh = mesh_new("res/monkey.obj");
+
       w->vsh = (vsh_t){
-        .vi = cube,
-        .i_size = sizeof(*cube),
-        .o_size = sizeof(v3_t),
+        .vi = mesh.verts,
+        .i_size = sizeof(*mesh.verts),
+        .o_size = sizeof(*mesh.verts),
         .main = _tmp_v_main,
         .uni = &w->cam,
-        .n_verts = 36,
+        .n_verts = mesh.n_verts,
         .arena = &w->scr_alloc
       };
 
@@ -279,7 +273,8 @@ _wnd_proc(HWND hwnd,
         .w = w->w,
         .h = w->h,
         .main = _tmp_f_main,
-        .interp = _tmp_interp
+        .interp = _tmp_interp,
+        .uni = malloc(sizeof(struct _tmp_f_uni))
       };
 
       return 0;
@@ -359,9 +354,9 @@ wnd_new(HINSTANCE inst, int cmd_show) {
     .mspf = 1.f / 60.f,
     .tmp_alloc = arena_new(4 * 1 << 20),
     .scr_alloc = arena_new(1 << 28),
-    .cam = persp_cam_new((v3_t){0, 0, 30}, 
+    .cam = persp_cam_new((v3_t){10.5, 10.5, 10.5}, 
                          (v3_t){0, 1, 0}, 
-                         -3.14159 / 2, 0,
+                         -2.35, -0.67,
                          0.01, 256,
                          3.14159 / 4., 16. / 10.)
   };

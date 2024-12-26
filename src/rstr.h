@@ -11,8 +11,8 @@ typedef struct vsh vsh_t;
 typedef v4_t (*vsh_main)(vsh_t *r, void const *uni, void const *vi, void *vo);
 
 struct vsh {
-  void const *vi;
-  void const *uni;
+  void *vi;
+  void *uni;
   void *__vo;
   v3_t *__ndc;
   int i_size, o_size;
@@ -35,13 +35,13 @@ struct fi {
 typedef struct fsh fsh_t;
 
 typedef void (*fsh_main)(fsh_t *f, void const *uni, void const *vo, float const *depth, void *fo);
-typedef void (*fsh_interp)(void const *v0, void const *v1, void const *v2, float u, float v, float w, void *vo);
+typedef void (*fsh_interp)(void const *v0, void const *v1, void const *v2, float u, float v, float w, float z, void *vo);
 
 struct fsh {
   fi_t *__fi;
   float *__depth;
   void *fo;
-  void const *uni;
+  void *uni;
   int o_size, __v_size;
   uint32_t w, h;
   fsh_interp interp;
